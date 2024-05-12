@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <style>
+        /* width */
+        ::-webkit-scrollbar {
+          width: 0.5rem;
+        }
+        
+        /* Track */
+        ::-webkit-scrollbar-track {
+          /* display: block; */
+          background-color: transparent;
+        }
+         
+        /* Handle */
+        ::-webkit-scrollbar-thumb {
+          /* display: block;  */
+          background-color: #5e5e5e;
+          border-radius: 10px;
+        }
+        #messageBox {
+            position: fixed;
+            top: -100px; /* Start above the viewport */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgb(15 23 42);
+            color: rgb(226 232 240);
+            padding: 10px 20px;
+            border-radius: 5px;
+            transition: top 0.5s ease-in-out;
+        }
+
+    </style>
+</head>
+
+<body class="bg-slate-800">
+    <div class="flex flex-col justify-between min-h-screen">
+        <div class="text-sm flex flex-col items-start ml-4 fixed z-[999] mt-2">
+            <div class="bg-slate-900 px-2 py-2 flex items-center rounded-lg w-max cursor-pointer settingBtn">
+                <span class="material-symbols-outlined text-slate-200 select-none">settings</span>
+            </div>
+            <div class="settingsMenu bg-slate-900 px-4 py-2 flex flex-col rounded-lg mt-2 hidden">
+                <div class="flex items-center">
+                    <span class="text-slate-200">Speech Synthesis for every response: <span id="speechStatus" class="font-bold"></span></span>
+                    <button id="speechSynthesisBtn" class="bg-slate-300 px-4 py-2 rounded-lg w-24 text-slate-900 font-mono hover:bg-slate-400 duration-200 ml-4"></button>
+                </div>
+                <span class="text-slate-200">_____________________________________________________________________</span>
+                <div class="flex items-center mt-3">
+                    <button id="clearChatBtn" class="bg-slate-300 px-4 py-2 rounded-lg w-48 text-slate-900 font-mono hover:bg-slate-400 duration-200 ml-4">CLEAR CHAT</button>
+                </div>
+                <span class="text-slate-200">_____________________________________________________________________</span>
+                <div class="flex items-center mt-3">
+                    <button id="clearDataBtn" class="bg-slate-300 px-4 py-2 rounded-lg w-48 text-slate-900 font-mono hover:bg-slate-400 duration-200 ml-4">CLEAR ALL DATA</button>
+                </div>
+            </div>
+        </div>
+        <div id="messageBox" class="select-none shadow-2xl"></div>
+        <div class="p-4 h-full overflow-y-auto mt-12" id="responseContainer"></div>
+        <div class="flex justify-between px-4 py-2 fixed bottom-0 left-[50%] -translate-x-[50%]">
+            <div class="flex items-center justify-center">
+                <input id="promptInput" type="text" class="hidden w-[556px] rounded-lg px-4 py-2 focus:outline-none bg-slate-800 border-[1px] border-slate-200 text-slate-200" placeholder="Enter your text here...">
+                <button id="genereateResponseBtn" class="hidden px-4 py-2 bg-slate-800 rounded-lg border-[1px] border-slate-200 text-slate-200 ml-2 hover:bg-slate-300 hover:text-slate-700 duration-200">Send...</button>
+            </div>
+        </div>
+        <div id="apiContainer" class="flex items-center fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-slate-900 px-4 py-4 rounded-lg shadow-2xl">
+            <input id="apiInput" type="text" class="w-[556px] rounded-lg px-4 py-2 bg-slate-900 focus:bg-slate-800 duration-200 outline-none text-slate-200" placeholder="Enter your API Key">
+            <button id="submitApiBtn" class="px-4 py-2 w-max bg-slate-800 rounded-lg text-slate-200 ml-2 hover:bg-slate-300 hover:text-slate-700 duration-200">Submit API</button>
+        </div>
+        <div id="greetingContainer" class="flex items-center fixed top-[45%] left-[50%] -translate-x-[50%] -translate-y-[45%] bg-slate-900 px-4 py-4 rounded-lg shadow-2xl">
+            <span class="text-slate-200 text-2xl">Hello there, how may I help you</span>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@google/generative-ai": "https://esm.run/@google/generative-ai"
+          }
+        }
+    </script>
+    <script type="module">
+        import { GoogleGenerativeAI } from "@google/generative-ai";
+
+        // Model Generation
+        let API_KEY = localStorage.getItem('API');
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        const generationConfig = {
+            temperature: 0.9,
+            topK: 1,
+            topP: 1,
+            maxOutputTokens: 2048,
+        };
+        let msgInput = document.getElementById("promptInput")
+        let apiInput = document.querySelector("#apiInput")
+        let responseBtn = document.querySelector("#genereateResponseBtn")
+        let apiSubmitBtn = document.querySelector("#submitApiBtn")
+        let apiContainer = document.querySelector("#apiContainer")
+        
+        let isSpeechOn = localStorage.getItem("speechSetting") === "true";
+        
+        apiSubmitBtn.addEventListener("click", () => {
+            if (apiInput.value.trim() === '') return
+            checkApi()
+            localStorage.setItem("API", apiInput.value)
+            apiContainer.classList.add("hidden")
+            msgInput.classList.remove("hidden")
+            responseBtn.classList.remove("hidden")
+            greetingContainer.classList.remove("hidden")
+            window.location.reload()
+        })
+        
+        
+        function checkApi() {
+            if(API_KEY) {
+                apiContainer.classList.add("hidden")
+                msgInput.classList.remove("hidden")
+                responseBtn.classList.remove("hidden")
+            }
+        }
+        
+        // Chat Array System
+        let chatHistory = JSON.parse(localStorage.getItem("chat-history")) || []
+        let chatResponses = JSON.parse(localStorage.getItem("chat-responses")) || []
+        
+        let greetingContainer = document.querySelector("#greetingContainer")
+        function showGreetings() {
+            if(localStorage.getItem('chat-responses')) {
+                greetingContainer.classList.add("hidden")
+            } else if (!API_KEY) {
+                greetingContainer.classList.add("hidden")
+            }
+        }
+        
+        // Response Elements
+        let responseContainer = document.querySelector("#responseContainer")
+        let responseDiv = document.createElement("div")
+        
+        window.scrollTo(0, document.body.scrollHeight)
+        
+        const messageBox = document.getElementById('messageBox');
+        let clearChatBtn = document.querySelector("#clearChatBtn")
+        clearChatBtn.addEventListener("click", () => {
+            greetingContainer.classList.remove("hidden")
+            messageBox.textContent = 'CHAT CLEARED'
+            localStorage.removeItem("chat-responses")
+            chatResponses = []
+            responseContainer.innerHTML = ''
+            messageBox.style.top = '20px'
+            setTimeout(() => {
+                messageBox.style.top = '-100px'
+            }, 2000); // Hide after 2 seconds
+        })
+        
+        let clearDataBtn = document.querySelector("#clearDataBtn")
+        clearDataBtn.addEventListener("click", () => {
+            messageBox.textContent = 'ALL DATA CLEARED'
+            greetingContainer.classList.remove("hidden")
+            localStorage.removeItem("chat-history")
+            localStorage.removeItem("chat-responses")
+            chatResponses = []
+            chatHistory = []
+            responseContainer.innerHTML = ''
+            messageBox.style.top = '20px'
+            setTimeout(() => {
+                messageBox.style.top = '-100px'
+            }, 2000); // Hide after 2 seconds
+        })
+        async function getResponse() {
+            const api = API_KEY
+            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            let msg = msgInput.value
+            // Appending the User Prompt
+            let userPromptDiv = document.createElement("div")
+            userPromptDiv.className = 'bg-slate-950 min-h-12 h-max px-4 py-2 rounded-lg text-slate-200 relative flex items-center'
+            userPromptDiv.innerHTML = `<span id="userPrompt" class="font-bold font-mono">You: <span class="font-light">${msg}</span></span>`
+            
+            if (msg.trim() === '') return;
+            responseContainer.appendChild(userPromptDiv)
+            
+            document.getElementById("promptInput").value = ''
+            
+            // Showing the Loader GIF in response div until the response is created by the model
+            responseDiv.innerHTML = `<img id="loader" src="/Animation - 1709734996574.gif" class="h-16 w-16 absolute -top-1 left-2" alt="">`
+            responseDiv.className = 'bg-slate-600 min-h-12 h-max px-4 py-2 rounded-lg text-slate-200 relative flex items-center my-4'
+            responseContainer.appendChild(responseDiv)
+            
+            // Generating Response and Storing, Reading the Chat History
+            const chat = model.startChat({
+                // history: chatHistory,
+                generationConfig
+            });
+            const result = await chat.sendMessage(msg);
+            const response = await result.response;
+            const text = await response.text();
+            
+            // showGreetings()
+            // const response = await result.response;
+            chatHistory.push({
+                role: "user",
+                parts: msg
+            },
+            {
+                role: "model",
+                parts: text
+            })
+            localStorage.setItem("chat-history", JSON.stringify(chatHistory))
+            
+            chatResponses.push({
+                userPrompt: msg,
+                modelResponse: text,
+            })
+            localStorage.setItem("chat-responses", JSON.stringify(chatResponses))
+            
+            // Appending the Response made in DOM
+            init()
+        }
+        function init () {
+            let responses = ''
+            chatResponses.forEach((chat, id) => {
+                if (chat.modelResponse !== '') {
+                    responses += `
+                    <div class="bg-slate-950 min-h-12 h-max px-4 py-2 rounded-lg text-slate-200 relative flex items-center"><span id="userPrompt" class="font-bold font-mono">You: <span class="font-light">${chat.userPrompt}</span></span></div>
+                    <div class="bg-slate-600 min-h-12 h-max px-4 py-2 rounded-lg text-slate-200 relative flex flex-col justify-between my-4">
+                        <span>${chat.modelResponse}</span>
+                        <div class="text-end mt-2">
+                            <span class="material-symbols-outlined select-none cursor-pointer copyBtn">content_copy</span>
+                            <span class="material-symbols-outlined text-red-500 select-none cursor-pointer deleteBtn">delete</span>
+                            <span class="material-symbols-outlined select-none cursor-pointer voiceBtn">campaign</span>
+                        </div>
+                    </div>
+                    `
+                    if(isSpeechOn) {
+                        let synthesisResponseId = chatResponses.length - 1
+                        synthesiseSpeech(synthesisResponseId)
+                    }
+                } else {
+                    responseDiv.className = 'bg-slate-600 min-h-12 h-max px-4 py-2 rounded-lg text-slate-200 relative flex items-center my-4'
+                    responseDiv.innerHTML = `<span id="response" class="italic font-extrabold">An error occured while generating response. Please try again</span>`
+                }
+            })
+            responseContainer.innerHTML = responses
+
+            // Essential Buttons
+            const copyBtns = document.querySelectorAll(".copyBtn")
+            copyBtns.forEach((btn, id) => {
+                btn.addEventListener("click", () => {
+                    copyResponse(id)
+                })
+            })
+            const deleteBtns = document.querySelectorAll(".deleteBtn")
+            deleteBtns.forEach((btn, id) => {
+                btn.addEventListener("click", () => {
+                    deleteResponse(id)
+                })
+            })
+            const voiceBtns = document.querySelectorAll(".voiceBtn")
+            voiceBtns.forEach((btn, id) => {
+                btn.addEventListener("click", () => {
+                    synthesiseSpeech(id)
+                })
+            })
+            showGreetings()
+        }
+
+        // Copy and Delete Response Functionality
+        function copyResponse(id) {
+            const text = chatResponses[id].modelResponse
+            navigator.clipboard.writeText(text)
+        }
+        function deleteResponse(id) {
+            chatResponses.splice(id, 1)
+            localStorage.setItem("chat-responses", JSON.stringify(chatResponses))
+            init()
+        }
+
+        // Speech Synthesis Functionality
+        function synthesiseSpeech(id) {
+            const synth = window.speechSynthesis
+            const text = chatResponses[id].modelResponse
+
+            const utterence = new SpeechSynthesisUtterance(text)
+            utterence.lang = 'en-IN'
+            synth.speak(utterence)
+        }
+
+        const speechSynthesisButton = document.querySelector("#speechSynthesisBtn")
+        speechSynthesisButton.addEventListener("click", isSpeechSynthesisOn)
+        
+        function isSpeechSynthesisOn() {
+            isSpeechOn = !isSpeechOn
+            localStorage.setItem("speechSetting", isSpeechOn)
+            updateSpeechStatus()
+        }
+        
+        const speechSynthesisStatusSpan = document.querySelector("#speechStatus")
+        function updateSpeechStatus() {
+            speechSynthesisButton.textContent = isSpeechOn ? 'DISABLE' : 'ENABLE'
+            speechSynthesisStatusSpan.textContent = isSpeechOn ? 'ENABLED' : 'DISABLED'
+        }
+        
+        // Settings Functionality
+        let settingsMenuEnabled = false
+        let settingBtn = document.querySelector(".settingBtn")
+        let settingsMenu = document.querySelector(".settingsMenu")
+        settingBtn.addEventListener("click", toggleSettingMenu)
+        function toggleSettingMenu() {
+            settingsMenuEnabled = !settingsMenuEnabled
+            if(settingsMenuEnabled) {
+                settingsMenu.classList.remove("hidden")
+            } else {
+                settingsMenu.classList.add("hidden")
+            }
+        }
+
+        // Essential Functions
+        updateSpeechStatus()
+        init()
+        checkApi()
+        showGreetings()
+        responseBtn.addEventListener("click", getResponse)
+        msgInput.addEventListener("keydown", (e) => {
+            if(e.key === 'Enter') {
+                getResponse()
+            }
+        })
+    </script>
+</body>
+
+</html>

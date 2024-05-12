@@ -1,0 +1,1 @@
+This chat bot uses Google's Gemini API.
